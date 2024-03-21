@@ -18,6 +18,7 @@ source ~/px4-venv/bin/activate
 git clone https://github.com/monemati/PX4-ROS2-Gazebo-YOLOv8.git
 ```
 ### Install PX4
+tested with px4-autopilot (1.14.0)
 ```commandline
 cd ~
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
