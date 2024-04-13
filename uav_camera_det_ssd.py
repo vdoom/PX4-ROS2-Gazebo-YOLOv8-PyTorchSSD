@@ -13,11 +13,6 @@ from sensor_msgs.msg import Image # Image is the message type
 from cv_bridge import CvBridge # Package to convert between ROS and OpenCV Images
 import cv2 # OpenCV library
 from ultralytics import YOLO # YOLO library
-
-# Need hardcode this and do not expect any arguments
-if len(sys.argv) < 5:
-    print('Usage: python run_ssd_example.py <net type>  <model path> <label path> <image path>')
-    sys.exit(0)
     
 net_type = "mb1-ssd"
 model_path = "ssd_models/trafic_small_512/model.pth"
