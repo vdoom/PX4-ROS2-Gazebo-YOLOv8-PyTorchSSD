@@ -18,13 +18,15 @@ from ultralytics import YOLO # YOLO library
 if len(sys.argv) < 5:
     print('Usage: python run_ssd_example.py <net type>  <model path> <label path> <image path>')
     sys.exit(0)
-net_type = sys.argv[1]
-model_path = sys.argv[2]
-label_path = sys.argv[3]
-image_path = sys.argv[4]
+    
+net_type = "mb1-ssd"
+model_path = "ssd_models/trafic_small_512/model.pth"
+label_path = "ssd_models/trafic_small_512/labels.txt"
+#image_path = sys.argv[4]
 
 class_names = [name.strip() for name in open(label_path).readlines()]
 net = create_mobilenetv1_ssd(len(class_names), is_test=True)
+net.load(model_path)
 predictor = create_mobilenetv1_ssd_predictor(net, candidate_size=200)
 
 
@@ -64,7 +66,7 @@ class ImageSubscriber(Node):
     
     # Object Detection
     imageForSSD = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    boxes, labels, probs = predictor.predict(imageForSSD, 10, 0.4)
+    boxes, labels, probs = predictor.predict(imageForSSD, 10, 0.2)
     
     for i in range(boxes.size(0)):
         box = boxes[i, :]
