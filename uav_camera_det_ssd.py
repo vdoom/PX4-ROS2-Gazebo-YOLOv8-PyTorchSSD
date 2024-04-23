@@ -12,7 +12,6 @@ from rclpy.node import Node # Handles the creation of nodes
 from sensor_msgs.msg import Image # Image is the message type
 from cv_bridge import CvBridge # Package to convert between ROS and OpenCV Images
 import cv2 # OpenCV library
-from ultralytics import YOLO # YOLO library
     
 net_type = "mb1-ssd"
 model_path = "ssd_models/trafic_small_512/model.pth"
