@@ -58,6 +58,7 @@ sudo ldconfig /usr/local/lib/
 ```
 ### Build ROS 2 Workspace
 ```commandline
+cd ~
 mkdir -p ~/ws_sensor_combined/src/
 cd ~/ws_sensor_combined/src/
 git clone https://github.com/PX4/px4_msgs.git
