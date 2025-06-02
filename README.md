@@ -8,14 +8,14 @@ https://github.com/monemati/PX4-ROS2-Gazebo-YOLOv8/assets/58460889/fab19f49-0be6
 ### Create a virtual environment
 ```commandline
 # create
-python -m venv ~/px4-venv
+python3 -m venv ~/px4-venv
 
 # activate
 source ~/px4-venv/bin/activate
 ```
 ### Clone repository
 ```commandline
-git clone https://github.com/monemati/PX4-ROS2-Gazebo-YOLOv8.git
+git clone https://github.com/vdoom/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD.git
 ```
 ### Install PX4
 tested with px4-autopilot (1.14.0)
@@ -56,6 +56,13 @@ make
 sudo make install
 sudo ldconfig /usr/local/lib/
 ```
+
+### Install additional python3 modules
+```commandline
+pip3 install catkin_pkg
+pip3 install lark --prefer-binary
+```
+
 ### Build ROS 2 Workspace
 ```commandline
 cd ~
@@ -77,12 +84,12 @@ colcon build
 ```
 ### Install MAVSDK
 ```commandline
-pip install mavsdk
-pip install aioconsole
-pip install pygame
+pip3 install mavsdk
+pip3 install aioconsole
+pip3 install pygame
 sudo apt install ros-humble-ros-gzgarden
-pip install numpy
-pip install opencv-python
+pip3 install numpy
+pip3 install opencv-python
 ```
 ### Install YOLO
 ```commandline
