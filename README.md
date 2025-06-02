@@ -42,7 +42,7 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install ros-humble-desktop
 sudo apt install ros-dev-tools
 source /opt/ros/humble/setup.bash && echo "source /opt/ros/humble/setup.bash" >> .bashrc
-pip install --user -U empy==3.3.4 pyros-genmsg setuptools
+pip3 install --user -U empy==3.3.4 pyros-genmsg setuptools
 ```
 ### Setup Micro XRCE-DDS Agent & Client
 ```commandline
@@ -93,7 +93,7 @@ pip3 install opencv-python
 ```
 ### Install YOLO
 ```commandline
-pip install ultralytics
+pip3 install ultralytics
 ```
 ### Additional Configs
 - Put below lines in your bashrc:
@@ -129,12 +129,12 @@ ros2 run ros_gz_image image_bridge /camera
 Terminal #4:
 source ~/px4-venv/bin/activate
 cd ~/PX4-ROS2-Gazebo-YOLOv8
-python uav_camera_det.py
+python3 uav_camera_det.py
 
 Terminal #5:
 source ~/px4-venv/bin/activate
 cd ~/PX4-ROS2-Gazebo-YOLOv8
-python keyboard-mavsdk-test.py
+python3 keyboard-mavsdk-test.py
 ```
 When you run the last command a blank window will open for reading inputs from keyboard. focus on that window by clicking on it, then hit "r" on keyboard to arm the drone, and use WASD and Up-Down-Left-Right on the keyboard for flying, and use "l" for landing.
 
@@ -155,7 +155,7 @@ ros2 run ros_gz_image image_bridge /camera
 Terminal #4:
 source ~/px4-venv/bin/activate
 cd ~/PX4-ROS2-Gazebo-YOLOv8
-python uav_camera_det.py
+python3 uav_camera_det.py
 
 Terminal #5:
 cd ~/ws_offboard_control
@@ -186,7 +186,7 @@ https://github.com/ArduPilot/ardupilot.git for the main ardupilot repo
 https://github.com/your-github-account/ardupilot for your fork of the ardupilot repo
 
 ```commandline
-git clone --recurse-submodules https://github.com/your-github-userid/ardupilot
+git clone --recurse-submodules https://github.com/ArduPilot/ardupilot.git
 cd ardupilot
 ```
 
@@ -332,6 +332,8 @@ brew install rapidjson
 ```
 
 ### Create a workspace folder and clone the repository
+
+Clone to the home directory. Otherwise configure correct paths on your own.
 
 ```commandline
 mkdir -p gz_ws/src && cd gz_ws/src
