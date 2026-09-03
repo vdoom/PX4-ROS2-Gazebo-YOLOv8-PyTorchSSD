@@ -162,10 +162,37 @@ Use the JetPack system Python. `--system-site-packages` lets the environment
 load the Jazzy `rclpy` / `cv_bridge` binaries built for Python 3.12.
 
 ```bash
+source /opt/ros/jazzy/setup.bash
 python3 -m venv --system-site-packages ~/px4-venv
 source ~/px4-venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install mavsdk aioconsole pygame ultralytics
+python -m pip install \
+  "numpy<2" \
+  "opencv-python<4.12" \
+  mavsdk \
+  aioconsole \
+  pygame \
+  ultralytics
+```
+
+The NumPy and OpenCV constraints keep the PyPI packages ABI-compatible with
+Jazzy's binary `cv_bridge`, which is built against Ubuntu Noble's NumPy 1.x.
+Verify the combined ROS and inference environment before continuing:
+
+```bash
+python - <<'PY'
+import cv2
+import numpy
+import rclpy
+import torch
+from cv_bridge import CvBridge
+from ultralytics import YOLO
+
+print(f"NumPy: {numpy.__version__}")
+print(f"OpenCV: {cv2.__version__}")
+print(f"PyTorch: {torch.__version__}; CUDA available: {torch.cuda.is_available()}")
+print("ROS 2, cv_bridge, and Ultralytics imports succeeded")
+PY
 ```
 
 This installs the application dependencies, but does not guarantee CUDA-enabled
@@ -192,7 +219,14 @@ export GZ_SIM_RESOURCE_PATH="$HOME/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD/models${GZ_
 
 cp ~/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD/worlds/default.sdf \
   ~/PX4-Autopilot/Tools/simulation/gz/worlds/yolo_demo.sdf
+sed -i "s/<world name='default'>/<world name='yolo_demo'>/" \
+  ~/PX4-Autopilot/Tools/simulation/gz/worlds/yolo_demo.sdf
+grep -n "<world name=" \
+  ~/PX4-Autopilot/Tools/simulation/gz/worlds/yolo_demo.sdf
 ```
+
+The filename and the SDF's internal world name must both be `yolo_demo`. PX4
+uses that name when it waits for Gazebo services and spawns the vehicle.
 
 Optionally angle the x500 depth camera down for a better view. In
 `~/PX4-Autopilot/Tools/simulation/gz/models/x500_depth/model.sdf`, change both
@@ -200,12 +234,14 @@ camera pose values from:
 
 ```xml
 <pose>.12 .03 .242 0 0 0</pose>
+<pose relative_to="base_link">.12 .03 .242 0 0 0</pose>
 ```
 
 to:
 
 ```xml
 <pose>.15 .029 .21 0 0.7854 0</pose>
+<pose relative_to="base_link">.15 .029 .21 0 0.7854 0</pose>
 ```
 
 ## Run
