@@ -1,177 +1,321 @@
 # PX4-ROS2-Gazebo-YOLOv8
-Aerial Object Detection using a Drone with PX4 Autopilot and ROS 2. PX4 SITL and Gazebo Garden used for Simulation. YOLOv8 used for Object Detection.
+
+Aerial object detection using a drone with PX4 Autopilot, ROS 2, Gazebo Sim,
+YOLOv8, or PyTorch SSD.
 
 ## Demo
+
 https://github.com/monemati/PX4-ROS2-Gazebo-YOLOv8/assets/58460889/fab19f49-0be6-43ea-a4e4-8e9bc8d59af9
 
-## Installation
-### Create a virtual environment
-```commandline
-# create
-python3 -m venv ~/px4-venv
+## JetPack 7 compatibility
 
-# activate
-source ~/px4-venv/bin/activate
+This guide targets the current JetPack 7 release as of 2026-09-04:
+
+| Component | Version used by this guide |
+| --- | --- |
+| NVIDIA JetPack | 7.2.1 / Jetson Linux 39.2.1 |
+| Ubuntu | 24.04 Noble, ARM64 |
+| ROS 2 | Jazzy LTS |
+| Gazebo Sim | Harmonic LTS (`gz-sim8`) |
+| PX4 | v1.17.0 |
+| Micro XRCE-DDS Agent | v2.4.3 |
+
+The old Humble/Garden combination in this README is not a supported native
+JetPack 7 combination. ROS 2 Humble binary packages target Ubuntu 22.04, while
+JetPack 7 uses Ubuntu 24.04. Gazebo Garden reached end of life in November 2024
+and is not the ROS/Gazebo pairing for Noble. The recommended Noble combination
+is ROS 2 Jazzy with Gazebo Harmonic. See the official
+[JetPack release information](https://developer.nvidia.com/embedded/jetpack/downloads),
+[ROS 2 Jazzy installation guide](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html),
+and [ROS/Gazebo compatibility table](https://gazebosim.org/docs/latest/ros_installation/).
+
+ROS 2 Jazzy supports Ubuntu Noble on 64-bit ARM. Gazebo Harmonic publishes
+ARM packages, but the Gazebo project classifies ARM as a best-effort platform,
+not a Tier 1 platform. If rendering is unreliable on a particular Jetson image,
+try the headless or OGRE 1 fallbacks below, or run Gazebo on a supported amd64
+Ubuntu 24.04 host. See [Gazebo Harmonic supported platforms](https://gazebosim.org/docs/harmonic/install/).
+
+Do not add Ubuntu Jammy repositories or install `ros-humble-*` /
+`ros-humble-ros-gzgarden` packages on JetPack 7.
+
+## Installation on JetPack 7
+
+### Confirm the platform
+
+```bash
+cat /etc/nv_tegra_release
+. /etc/os-release && echo "$PRETTY_NAME ($VERSION_CODENAME)"
+uname -m
 ```
-### Clone repository
-```commandline
+
+For JetPack 7.2.1 the output should identify Jetson Linux `R39.2.1`, Ubuntu
+`noble`, and `aarch64`. JetPack 7.0/7.1 also use Noble, but this guide is pinned
+to the newer baseline above.
+
+### Clone this repository
+
+```bash
+cd ~
 git clone https://github.com/vdoom/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD.git
 ```
-### Install PX4
-tested with px4-autopilot (1.14.0)
-```commandline
+
+### Install PX4 and Gazebo Harmonic
+
+PX4 v1.17 supports Ubuntu 24.04 and Gazebo Harmonic. Pinning the release keeps
+the PX4 firmware and `px4_msgs` definitions reproducible.
+
+```bash
 cd ~
-git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+git clone --branch v1.17.0 --recursive \
+  https://github.com/PX4/PX4-Autopilot.git
 bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
-cd PX4-Autopilot/
+
+# Reboot after the setup script completes, then build SITL.
+cd ~/PX4-Autopilot
 make px4_sitl
 ```
-### Install ROS 2
-```commandline
-cd ~
-sudo apt update && sudo apt install locales
+
+The PX4 setup script installs `gz-harmonic` on Ubuntu 24.04. Do not separately
+install Garden. See the [PX4 Ubuntu setup guide](https://docs.px4.io/v1.17/en/dev_setup/dev_env_linux_ubuntu).
+
+### Install ROS 2 Jazzy and the Harmonic bridge
+
+These commands use the current ROS repository bootstrap package rather than a
+manually managed repository key.
+
+```bash
+sudo apt update
+sudo apt install -y locales software-properties-common curl
 sudo locale-gen en_US en_US.UTF-8
 sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
-sudo apt install software-properties-common
 sudo add-apt-repository universe
-sudo apt update && sudo apt install curl -y
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-sudo apt update && sudo apt upgrade -y
-sudo apt install ros-humble-desktop
-sudo apt install ros-dev-tools
-source /opt/ros/humble/setup.bash && echo "source /opt/ros/humble/setup.bash" >> .bashrc
-pip3 install --user -U empy==3.3.4 pyros-genmsg setuptools
+
+export ROS_APT_SOURCE_VERSION=$(curl -s \
+  https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest \
+  | grep -F 'tag_name' | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb \
+  "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+
+sudo apt update
+sudo apt install -y \
+  ros-jazzy-desktop \
+  ros-jazzy-ros-gz \
+  ros-jazzy-cv-bridge \
+  ros-dev-tools \
+  python3-opencv \
+  python3-venv
+
+grep -qxF 'source /opt/ros/jazzy/setup.bash' ~/.bashrc \
+  || echo 'source /opt/ros/jazzy/setup.bash' >> ~/.bashrc
+source /opt/ros/jazzy/setup.bash
+sudo rosdep init 2>/dev/null || true
+rosdep update
 ```
-### Setup Micro XRCE-DDS Agent & Client
-```commandline
+
+`ros-jazzy-ros-gz` is Jazzy's Harmonic vendor-package pairing and includes
+`ros_gz_image`. Both are available as Noble ARM64 packages.
+
+### Install Micro XRCE-DDS Agent
+
+ROS 2 Jazzy / Fast DDS 2.14 requires Micro XRCE-DDS Agent v2.4.3 with the
+default PX4 v1.17 client. Do not clone an unpinned Agent `main` branch, which
+may select the incompatible v3 protocol.
+
+```bash
 cd ~
-git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
-cd Micro-XRCE-DDS-Agent
-mkdir build
+git clone --branch v2.4.3 \
+  https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
+cd ~/Micro-XRCE-DDS-Agent
+mkdir -p build
 cd build
 cmake ..
-make
+make -j"$(nproc)"
 sudo make install
 sudo ldconfig /usr/local/lib/
 ```
 
-### Install additional python3 modules
-```commandline
-pip3 install catkin_pkg
-pip3 install lark --prefer-binary
+The version pairing is documented in the
+[PX4 uXRCE-DDS guide](https://docs.px4.io/v1.17/en/middleware/uxrce_dds).
+
+### Build the ROS 2 workspace
+
+Use the `px4_msgs` branch that matches PX4 v1.17. One workspace is sufficient
+for both the listener and offboard examples.
+
+```bash
+mkdir -p ~/ros2_px4_ws/src
+cd ~/ros2_px4_ws/src
+git clone --branch release/1.17 https://github.com/PX4/px4_msgs.git
+git clone https://github.com/PX4/px4_ros_com.git
+
+cd ~/ros2_px4_ws
+source /opt/ros/jazzy/setup.bash
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install
 ```
 
-### Build ROS 2 Workspace
-```commandline
-cd ~
-mkdir -p ~/ws_sensor_combined/src/
-cd ~/ws_sensor_combined/src/
-git clone https://github.com/PX4/px4_msgs.git
-git clone https://github.com/PX4/px4_ros_com.git
-cd ..
-source /opt/ros/humble/setup.bash
-colcon build
+### Create the Python environment
 
-mkdir -p ~/ws_offboard_control/src/
-cd ~/ws_offboard_control/src/
-git clone https://github.com/PX4/px4_msgs.git
-git clone https://github.com/PX4/px4_ros_com.git
-cd ..
-source /opt/ros/humble/setup.bash
-colcon build
+Use the JetPack system Python. `--system-site-packages` lets the environment
+load the Jazzy `rclpy` / `cv_bridge` binaries built for Python 3.12.
+
+```bash
+python3 -m venv --system-site-packages ~/px4-venv
+source ~/px4-venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install mavsdk aioconsole pygame ultralytics
 ```
-### Install MAVSDK
-```commandline
-pip3 install mavsdk
-pip3 install aioconsole
-pip3 install pygame
-sudo apt install ros-humble-ros-gzgarden
-pip3 install numpy
-pip3 install opencv-python
+
+This installs the application dependencies, but does not guarantee CUDA-enabled
+PyTorch. A plain PyPI PyTorch build may be CPU-only on Jetson. Check the result:
+
+```bash
+python -c 'import torch; print(torch.__version__); print(torch.cuda.is_available())'
 ```
-### Install YOLO
-```commandline
-pip3 install ultralytics
+
+If CUDA reports `False`, use a PyTorch build or container explicitly compatible
+with the installed JetPack release; consult NVIDIA's
+[PyTorch for Jetson compatibility table](https://docs.nvidia.com/deeplearning/frameworks/install-pytorch-jetson-platform-release-notes/pytorch-jetson-rel.html).
+The ROS/Gazebo setup does not depend on CUDA-enabled PyTorch.
+
+### Configure the custom world and models
+
+Keep the project's world under a distinct name instead of overwriting PX4's
+upstream `default.sdf`.
+
+```bash
+grep -qxF 'export GZ_SIM_RESOURCE_PATH="$HOME/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD/models${GZ_SIM_RESOURCE_PATH:+:$GZ_SIM_RESOURCE_PATH}"' ~/.bashrc \
+  || echo 'export GZ_SIM_RESOURCE_PATH="$HOME/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD/models${GZ_SIM_RESOURCE_PATH:+:$GZ_SIM_RESOURCE_PATH}"' >> ~/.bashrc
+export GZ_SIM_RESOURCE_PATH="$HOME/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD/models${GZ_SIM_RESOURCE_PATH:+:$GZ_SIM_RESOURCE_PATH}"
+
+cp ~/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD/worlds/default.sdf \
+  ~/PX4-Autopilot/Tools/simulation/gz/worlds/yolo_demo.sdf
 ```
-### Additional Configs
-- Put below lines in your bashrc:
-```commandline
-source /opt/ros/humble/setup.bash
-export GZ_SIM_RESOURCE_PATH=~/.gz/models
-```
-- Copy the content of models from main repo to ~/.gz/models
-- Copy default.sdf from worlds folder in the main repo to ~/PX4-Autopilot/Tools/simulation/gz/worlds/
-- Change the angle of Drone's camera for better visual:
-```commandline
-# Go to ~/PX4-Autopilot/Tools/simulation/gz/models/x500_depth/model.sdf then change <pose> tag in line 9 from:
+
+Optionally angle the x500 depth camera down for a better view. In
+`~/PX4-Autopilot/Tools/simulation/gz/models/x500_depth/model.sdf`, change both
+camera pose values from:
+
+```xml
 <pose>.12 .03 .242 0 0 0</pose>
+```
+
 to:
+
+```xml
 <pose>.15 .029 .21 0 0.7854 0</pose>
 ```
 
 ## Run
-### Fly using Keyboard
-You need several terminals.
-```commandline
-Terminal #1:
-cd ~/Micro-XRCE-DDS-Agent
+
+The current x500 depth model does not publish RGB images on a short `/camera`
+Gazebo topic. Discover the fully qualified topic and remap the detector's
+`camera` subscription as shown below.
+
+### Fly using the keyboard
+
+Use five terminals.
+
+Terminal 1 — DDS agent:
+
+```bash
 MicroXRCEAgent udp4 -p 8888
+```
 
-Terminal #2:
+Terminal 2 — PX4 and Gazebo:
+
+```bash
 cd ~/PX4-Autopilot
-PX4_SYS_AUTOSTART=4002 PX4_GZ_MODEL_POSE="268.08,-128.22,3.86,0.00,0,-0.7" PX4_GZ_MODEL=x500_depth ./build/px4_sitl_default/bin/px4
+PX4_GZ_WORLD=yolo_demo \
+PX4_GZ_MODEL_POSE="268.08,-128.22,3.86,0.00,0,-0.7" \
+make px4_sitl gz_x500_depth
+```
 
-Terminal #3:
-ros2 run ros_gz_image image_bridge /camera
+Terminal 3 — discover and bridge the RGB camera:
 
-Terminal #4:
+```bash
+source /opt/ros/jazzy/setup.bash
+GZ_IMAGE_TOPIC=$(gz topic -l | grep '/sensor/IMX214/image$' | head -n 1)
+printf 'Bridging %s\n' "$GZ_IMAGE_TOPIC"
+ros2 run ros_gz_image image_bridge "$GZ_IMAGE_TOPIC"
+```
+
+Terminal 4 — run YOLO detection, remapped to the bridged topic:
+
+```bash
+source /opt/ros/jazzy/setup.bash
 source ~/px4-venv/bin/activate
-cd ~/PX4-ROS2-Gazebo-YOLOv8
-python3 uav_camera_det.py
+cd ~/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD
+ROS_IMAGE_TOPIC=$(ros2 topic list | grep '/sensor/IMX214/image$' | head -n 1)
+python3 uav_camera_det.py --ros-args -r camera:="$ROS_IMAGE_TOPIC"
+```
 
-Terminal #5:
+Terminal 5 — keyboard controller:
+
+```bash
 source ~/px4-venv/bin/activate
-cd ~/PX4-ROS2-Gazebo-YOLOv8
+cd ~/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD
 python3 keyboard-mavsdk-test.py
 ```
-When you run the last command a blank window will open for reading inputs from keyboard. focus on that window by clicking on it, then hit "r" on keyboard to arm the drone, and use WASD and Up-Down-Left-Right on the keyboard for flying, and use "l" for landing.
 
-### Fly using ROS 2
-You need several terminals.
-```commandline
-Terminal #1:
-cd ~/Micro-XRCE-DDS-Agent
-MicroXRCEAgent udp4 -p 8888
+The last command opens a blank input window. Click it, press `r` to arm, use
+WASD and the arrow keys to fly, and press `l` to land.
 
-Terminal #2:
+### Fly using ROS 2 offboard control
+
+Run terminals 1, 3, and 4 as above. In terminal 2 use the ROS example pose:
+
+```bash
 cd ~/PX4-Autopilot
-PX4_SYS_AUTOSTART=4002 PX4_GZ_MODEL_POSE="283.08,-136.22,3.86,0.00,0,-0.7" PX4_GZ_MODEL=x500_depth ./build/px4_sitl_default/bin/px4
+PX4_GZ_WORLD=yolo_demo \
+PX4_GZ_MODEL_POSE="283.08,-136.22,3.86,0.00,0,-0.7" \
+make px4_sitl gz_x500_depth
+```
 
-Terminal #3:
-ros2 run ros_gz_image image_bridge /camera
+Then run the offboard example in terminal 5:
 
-Terminal #4:
-source ~/px4-venv/bin/activate
-cd ~/PX4-ROS2-Gazebo-YOLOv8
-python3 uav_camera_det.py
-
-Terminal #5:
-cd ~/ws_offboard_control
-source /opt/ros/humble/setup.bash
-source install/local_setup.bash
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/ros2_px4_ws/install/local_setup.bash
 ros2 run px4_ros_com offboard_control
 ```
 
-## Acknowledgement
-- https://github.com/PX4/PX4-Autopilot
-- https://github.com/ultralytics/ultralytics
-- https://www.ros.org/
-- https://gazebosim.org/
+The example arms the simulated vehicle and commands a takeoff. Use it only with
+SITL unless you have reviewed and adapted the control code for real hardware.
+
+### Jetson troubleshooting
+
+- If the Gazebo GUI fails or is too slow, prefix the terminal 2 command with
+  `HEADLESS=1`.
+- If OGRE 2 rendering fails, also try
+  `PX4_GZ_SIM_RENDER_ENGINE=ogre` before the `make` command.
+- If the camera topic variable is empty, wait until Gazebo is running and use
+  `gz topic -l | grep -E 'IMX214|camera|image'` to inspect the actual name.
+- If `ros-jazzy-*` packages cannot be found, verify that the system reports
+  `noble` and `arm64` and that the ROS apt-source package was installed. Do not
+  work around it by adding a Jammy repository.
+- Verify the selected stack with `printenv ROS_DISTRO`, `gz sim --versions`, and
+  `ros2 pkg prefix ros_gz_image`.
+
+## Acknowledgements
+
+- [PX4 Autopilot](https://github.com/PX4/PX4-Autopilot)
+- [Ultralytics](https://github.com/ultralytics/ultralytics)
+- [ROS](https://www.ros.org/)
+- [Gazebo](https://gazebosim.org/)
 
 
 # Appendix for ArduPilot
+
+> [!WARNING]
+> This appendix describes the standalone ArduPilot Gazebo plugin. The plugin
+> does not depend on ROS 2, but its upstream documentation does not list Ubuntu
+> 24.04 ARM64 as a tested platform. ArduPilot's ROS 2 documentation currently
+> supports Humble, which is not a supported native JetPack 7 combination. Treat
+> the appendix as experimental on JetPack 7; it is not the setup used by the
+> PX4 instructions above.
 
 ## Install and setup ArduPilot
 
@@ -310,14 +454,7 @@ We use a standard version of ArduPilot with a custom plugin for Gazebo which is 
 
 - Ubuntu
 
-For Gazebo garden
-
-```commandline
-sudo apt update
-sudo apt install libgz-sim7-dev rapidjson-dev
-```
-
-For Gazebo Harmonic
+For Gazebo Harmonic on JetPack 7:
 
 ```commandline
 sudo apt update
@@ -342,7 +479,7 @@ git clone https://github.com/ArduPilot/ardupilot_gazebo
 
 ### Build the plugin
 
-Set GZ_VERSION environment variable according to installed gazebo version (replace harmonic with garden if required):
+Select Gazebo Harmonic:
 
 ```commandline
 export GZ_VERSION=harmonic
