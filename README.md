@@ -100,11 +100,10 @@ sudo dpkg -i /tmp/ros2-apt-source.deb
 
 sudo apt update
 sudo apt install -y \
-  ros-jazzy-desktop \
-  ros-jazzy-ros-gz \
-  ros-jazzy-cv-bridge \
+  ros-jazzy-ros-base \
+  ros-jazzy-ros-gz-bridge \
+  ros-jazzy-ros-gz-image \
   ros-dev-tools \
-  python3-opencv \
   python3-venv
 
 grep -qxF 'source /opt/ros/jazzy/setup.bash' ~/.bashrc \
@@ -114,8 +113,26 @@ sudo rosdep init 2>/dev/null || true
 rosdep update
 ```
 
-`ros-jazzy-ros-gz` is Jazzy's Harmonic vendor-package pairing and includes
-`ros_gz_image`. Both are available as Noble ARM64 packages.
+These are the ROS/Gazebo packages needed by this project. The larger
+`ros-jazzy-desktop` and `ros-jazzy-ros-gz` metapackages include demos and GUI
+tools that can pull Ubuntu's OpenCV and binary `cv_bridge` into the installation.
+The packages above still use Jazzy's Harmonic vendor-package pairing and are
+available as Noble ARM64 packages.
+
+Choose one OpenCV / `cv_bridge` setup:
+
+- For Ubuntu's OpenCV, install the matching binary bridge:
+
+  ```bash
+  sudo apt install -y ros-jazzy-cv-bridge python3-opencv
+  ```
+
+- For a custom OpenCV build, do not install those two packages. Build
+  `cv_bridge` against the same OpenCV installation by following
+  [Rebuild ROS 2 Jazzy cv_bridge for a custom OpenCV](rebuild_ros2_cv_bridge.md).
+  This project's custom-build path assumes OpenCV was compiled against NumPy
+  1.x and keeps the runtime on `numpy<2`. The guide also avoids installing the
+  `opencv-python` wheel into the Python environment.
 
 ### Install Micro XRCE-DDS Agent
 
@@ -159,25 +176,31 @@ colcon build --symlink-install
 ### Create the Python environment
 
 Use the JetPack system Python. `--system-site-packages` lets the environment
-load the Jazzy `rclpy` / `cv_bridge` binaries built for Python 3.12.
+load Jazzy's Python 3.12 packages and the selected OpenCV Python binding. When
+using custom OpenCV, source its `cv_bridge` overlay before creating or using the
+environment, as shown below.
 
 ```bash
 source /opt/ros/jazzy/setup.bash
+# Custom OpenCV only: source ~/ros2_custom_ws/install/local_setup.bash
 python3 -m venv --system-site-packages ~/px4-venv
 source ~/px4-venv/bin/activate
 python -m pip install --upgrade pip
+python -m pip install "numpy<2" mavsdk aioconsole pygame
+
+# Install every non-OpenCV dependency for the pinned Ultralytics release.
 python -m pip install \
-  "numpy<2" \
-  "opencv-python<4.12" \
-  mavsdk \
-  aioconsole \
-  pygame \
-  ultralytics
+  filelock matplotlib pillow pyyaml requests psutil polars nvidia-ml-py \
+  ultralytics-thop ultralytics-platform
+python -m pip install --no-deps "ultralytics==8.4.138"
 ```
 
-The NumPy and OpenCV constraints keep the PyPI packages ABI-compatible with
-Jazzy's binary `cv_bridge`, which is built against Ubuntu Noble's NumPy 1.x.
-Verify the combined ROS and inference environment before continuing:
+Do not install `opencv-python`, `opencv-python-headless`, or their contrib
+variants in this environment. `--no-deps` prevents Ultralytics from adding a
+bundled OpenCV or replacing the JetPack-compatible PyTorch build. Install
+PyTorch and torchvision versions compatible with the active JetPack release,
+and keep NumPy on 1.x to match the custom OpenCV build. Verify the combined ROS
+and inference environment before continuing:
 
 ```bash
 python - <<'PY'
@@ -189,7 +212,7 @@ from cv_bridge import CvBridge
 from ultralytics import YOLO
 
 print(f"NumPy: {numpy.__version__}")
-print(f"OpenCV: {cv2.__version__}")
+print(f"OpenCV: {cv2.__version__} ({cv2.__file__})")
 print(f"PyTorch: {torch.__version__}; CUDA available: {torch.cuda.is_available()}")
 print("ROS 2, cv_bridge, and Ultralytics imports succeeded")
 PY
@@ -282,6 +305,7 @@ Terminal 4 — run YOLO detection, remapped to the bridged topic:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
+# Custom OpenCV only: source ~/ros2_custom_ws/install/local_setup.bash
 source ~/px4-venv/bin/activate
 cd ~/PX4-ROS2-Gazebo-YOLOv8-PyTorchSSD
 ROS_IMAGE_TOPIC=$(ros2 topic list | grep '/sensor/IMX214/image$' | head -n 1)

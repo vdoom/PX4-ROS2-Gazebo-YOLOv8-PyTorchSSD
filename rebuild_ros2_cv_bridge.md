@@ -11,7 +11,16 @@ sudo apt install ros-jazzy-cv-bridge python3-opencv
 ```
 
 Only rebuild `cv_bridge` if this project must use an OpenCV installation built
-at a non-default path (for example, a custom CUDA-enabled OpenCV).
+at a non-default path (for example, a custom CUDA-enabled OpenCV). Do not run
+the binary-package command above in that case. Also avoid the
+`ros-jazzy-desktop` and `ros-jazzy-ros-gz` metapackages: their demo and GUI
+dependencies can install the binary bridge and Ubuntu OpenCV. The main README
+installs the smaller ROS/Gazebo package set needed by this project.
+
+The commands below assume the custom OpenCV Python binding was compiled against
+NumPy 1.x. The build and application environment therefore use `numpy<2`; do
+not upgrade that environment to NumPy 2 without rebuilding OpenCV and
+`cv_bridge` against the same NumPy ABI.
 
 Create a workspace:
 
@@ -32,6 +41,21 @@ Set this to the directory containing the custom OpenCV's `OpenCVConfig.cmake`:
 export OpenCV_DIR=/usr/local/lib/cmake/opencv4
 ```
 
+Confirm both the CMake package and custom Python binding before building:
+
+```bash
+test -f "$OpenCV_DIR/OpenCVConfig.cmake"
+python3 - <<'PY'
+import cv2
+import numpy
+
+print(f"NumPy: {numpy.__version__}")
+print(f"OpenCV: {cv2.__version__} ({cv2.__file__})")
+assert numpy.__version__.split('.', 1)[0] == '1', \
+    "This guide expects the custom OpenCV build to use NumPy 1.x"
+PY
+```
+
 Install dependencies and build against ROS 2 Jazzy:
 
 ```bash
@@ -39,16 +63,53 @@ cd ~/ros2_custom_ws
 source /opt/ros/jazzy/setup.bash
 sudo rosdep init 2>/dev/null || true
 rosdep update
-rosdep install --from-paths src --ignore-src -r -y
+rosdep install --from-paths src/vision_opencv/cv_bridge \
+  --ignore-src -r -y \
+  --skip-keys "libopencv-dev python3-opencv"
 colcon build --packages-select cv_bridge \
-  --cmake-args -DOpenCV_DIR="$OpenCV_DIR"
+  --symlink-install \
+  --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DOpenCV_DIR="$OpenCV_DIR" \
+    -DPython3_EXECUTABLE=/usr/bin/python3
 ```
+
+The skipped rosdep keys are intentional: satisfying them through apt would add
+a second OpenCV installation. If this workspace was previously configured
+against another OpenCV, remove its `build/cv_bridge` and `install/cv_bridge`
+directories before rebuilding.
 
 Verify which OpenCV libraries the result uses:
 
 ```bash
 ldd ~/ros2_custom_ws/install/cv_bridge/lib/libcv_bridge.so | grep opencv
 ```
+
+Every reported OpenCV library should resolve to the custom installation, not
+`/usr/lib/aarch64-linux-gnu`. If the custom libraries are under `/usr/local/lib`
+but are not found, run `sudo ldconfig` and check again.
+
+Create the application environment without installing PyPI's OpenCV wheel.
+Keep NumPy on 1.x, matching the custom OpenCV build:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/ros2_custom_ws/install/local_setup.bash
+python3 -m venv --system-site-packages ~/px4-venv
+source ~/px4-venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install "numpy<2" mavsdk aioconsole pygame
+
+# Install the non-OpenCV dependencies for the pinned Ultralytics release.
+python -m pip install \
+  filelock matplotlib pillow pyyaml requests psutil polars nvidia-ml-py \
+  ultralytics-thop ultralytics-platform
+python -m pip install --no-deps "ultralytics==8.4.138"
+```
+
+`--no-deps` prevents pip from adding `opencv-python` (and from replacing a
+JetPack-compatible PyTorch build). PyTorch and torchvision must already be
+installed in versions compatible with the active JetPack release.
 
 Before running this repository's Python nodes, source the custom overlay after
 Jazzy and before activating the Python virtual environment:
@@ -57,4 +118,19 @@ Jazzy and before activating the Python virtual environment:
 source /opt/ros/jazzy/setup.bash
 source ~/ros2_custom_ws/install/local_setup.bash
 source ~/px4-venv/bin/activate
+```
+
+Finally, verify that Python and the bridge resolve to the intended builds:
+
+```bash
+python - <<'PY'
+import cv2
+import cv_bridge
+import torch
+from cv_bridge import CvBridge
+
+print(f"OpenCV: {cv2.__version__} ({cv2.__file__})")
+print(f"PyTorch: {torch.__version__}; CUDA available: {torch.cuda.is_available()}")
+print(f"cv_bridge: {cv_bridge.__file__}")
+PY
 ```
