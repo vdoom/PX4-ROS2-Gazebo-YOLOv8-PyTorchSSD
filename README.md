@@ -549,10 +549,11 @@ brew install rapidjson
 
 ### Create a workspace folder and clone the repository
 
-Clone to the home directory. Otherwise configure correct paths on your own.
+Use a dedicated workspace under the ArduPilot directory:
 
 ```commandline
-mkdir -p gz_ws/src && cd gz_ws/src
+mkdir -p ~/ardupilot/gz_ws/src
+cd ~/ardupilot/gz_ws/src
 git clone https://github.com/ArduPilot/ardupilot_gazebo
 ```
 
@@ -562,27 +563,31 @@ Select Gazebo Harmonic:
 
 ```commandline
 export GZ_VERSION=harmonic
-cd ardupilot_gazebo
-mkdir build && cd build
+cd ~/ardupilot/gz_ws/src/ardupilot_gazebo
+mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make -j4
 ```
 
 ### Configure the Gazebo environment¶
-Gazebo uses a number of environment variables to locate plugins and models at run time. These may be set in the terminal used to run Gazebo, or set in your .bashrc or .zshrc files:
-
-- In a terminal
+Gazebo uses environment variables to locate the ArduPilot plugin and models. ROS 2 Jazzy also sets `GZ_CONFIG_PATH` to its vendor directories, which can hide the `gz sim` command. Configure the terminal after sourcing ROS 2:
 
 ```commandline
-export GZ_SIM_SYSTEM_PLUGIN_PATH=$HOME/gz_ws/src/ardupilot_gazebo/build:$GZ_SIM_SYSTEM_PLUGIN_PATH
-export GZ_SIM_RESOURCE_PATH=$HOME/gz_ws/src/ardupilot_gazebo/models:$HOME/gz_ws/src/ardupilot_gazebo/worlds:$GZ_SIM_RESOURCE_PATH
+source /opt/ros/jazzy/setup.bash
+cd ~/ardupilot/gz_ws/src/ardupilot_gazebo
+AP_GZ=$PWD
+export GZ_CONFIG_PATH=/usr/share/gz
+export GZ_SIM_SYSTEM_PLUGIN_PATH="$AP_GZ/build"
+export GZ_SIM_RESOURCE_PATH="$AP_GZ/models:$AP_GZ/worlds"
 ```
 
-- In .bashrc or .zshrc
+If you make these settings persistent, put them in `~/.bashrc` after the line that sources ROS 2. Use an absolute home-based path there because `$PWD` depends on the current directory:
 
 ```commandline
-echo 'export GZ_SIM_SYSTEM_PLUGIN_PATH=$HOME/gz_ws/src/ardupilot_gazebo/build:${GZ_SIM_SYSTEM_PLUGIN_PATH}' >> ~/.bashrc
-echo 'export GZ_SIM_RESOURCE_PATH=$HOME/gz_ws/src/ardupilot_gazebo/models:$HOME/gz_ws/src/ardupilot_gazebo/worlds:${GZ_SIM_RESOURCE_PATH}' >> ~/.bashrc
+AP_GZ="$HOME/ardupilot/gz_ws/src/ardupilot_gazebo"
+export GZ_CONFIG_PATH=/usr/share/gz
+export GZ_SIM_SYSTEM_PLUGIN_PATH="$AP_GZ/build"
+export GZ_SIM_RESOURCE_PATH="$AP_GZ/models:$AP_GZ/worlds"
 ```
 
 ### Using Gazebo with ArduPilot¶
@@ -591,7 +596,8 @@ Two models are provided as examples with the plugin: an Iris quadcopter and a Ze
 #### Iris quadcopter¶
 Run Gazebo
 ```commandline
-gz sim -v4 -r iris_runway.sdf
+cd ~/ardupilot/gz_ws/src/ardupilot_gazebo
+gz sim -v4 -r worlds/iris_runway.sdf
 ```
 
 Run SITL
@@ -612,7 +618,8 @@ The Zephyr is positioned for vertical takeoff.
 
 Run Gazebo
 ```commandline
-gz sim -v4 -r zephyr_runway.sdf
+cd ~/ardupilot/gz_ws/src/ardupilot_gazebo
+gz sim -v4 -r worlds/zephyr_runway.sdf
 ```
 
 Run SITL
