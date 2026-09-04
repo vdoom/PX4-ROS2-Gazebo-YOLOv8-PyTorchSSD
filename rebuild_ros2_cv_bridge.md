@@ -97,19 +97,38 @@ source /opt/ros/jazzy/setup.bash
 source ~/ros2_custom_ws/install/local_setup.bash
 python3 -m venv --system-site-packages ~/px4-venv
 source ~/px4-venv/bin/activate
-python -m pip install --upgrade pip
+python -m pip install --upgrade pip "setuptools>=77,<80"
+
+# Stop here unless a JetPack-compatible PyTorch installation is already visible.
+python - <<'PY'
+import torch
+import torchvision
+
+print(f"PyTorch: {torch.__version__} ({torch.__file__})")
+print(f"torchvision: {torchvision.__version__} ({torchvision.__file__})")
+print(f"CUDA available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    test_tensor = torch.ones(1, device="cuda")
+    print(f"CUDA tensor test: {(test_tensor + 1).item()}")
+PY
+
 python -m pip install "numpy<2" mavsdk aioconsole pygame
 
-# Install the non-OpenCV dependencies for the pinned Ultralytics release.
+# Resolve only dependencies that cannot replace OpenCV or PyTorch.
 python -m pip install \
-  filelock matplotlib pillow pyyaml requests psutil polars nvidia-ml-py \
-  ultralytics-thop ultralytics-platform
-python -m pip install --no-deps "ultralytics==8.4.138"
+  filelock matplotlib pillow pyyaml requests psutil polars nvidia-ml-py httpx
+
+# These packages depend on OpenCV or PyTorch, so never resolve their dependencies.
+python -m pip install --no-deps \
+  "ultralytics-thop==2.1.6" \
+  "ultralytics-platform==0.1.21" \
+  "ultralytics==8.4.138"
 ```
 
-`--no-deps` prevents pip from adding `opencv-python` (and from replacing a
-JetPack-compatible PyTorch build). PyTorch and torchvision must already be
-installed in versions compatible with the active JetPack release.
+Applying `--no-deps` to both Ultralytics and `ultralytics-thop` prevents pip
+from adding `opencv-python`, replacing a JetPack-compatible PyTorch build, or
+downloading a separate multi-gigabyte CUDA stack. PyTorch and torchvision must
+already be installed in versions compatible with the active JetPack release.
 
 Before running this repository's Python nodes, source the custom overlay after
 Jazzy and before activating the Python virtual environment:

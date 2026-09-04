@@ -185,22 +185,41 @@ source /opt/ros/jazzy/setup.bash
 # Custom OpenCV only: source ~/ros2_custom_ws/install/local_setup.bash
 python3 -m venv --system-site-packages ~/px4-venv
 source ~/px4-venv/bin/activate
-python -m pip install --upgrade pip
+python -m pip install --upgrade pip "setuptools>=77,<80"
+
+# Stop here unless a JetPack-compatible PyTorch installation is already visible.
+python - <<'PY'
+import torch
+import torchvision
+
+print(f"PyTorch: {torch.__version__} ({torch.__file__})")
+print(f"torchvision: {torchvision.__version__} ({torchvision.__file__})")
+print(f"CUDA available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    test_tensor = torch.ones(1, device="cuda")
+    print(f"CUDA tensor test: {(test_tensor + 1).item()}")
+PY
+
 python -m pip install "numpy<2" mavsdk aioconsole pygame
 
-# Install every non-OpenCV dependency for the pinned Ultralytics release.
+# Resolve only dependencies that cannot replace OpenCV or PyTorch.
 python -m pip install \
-  filelock matplotlib pillow pyyaml requests psutil polars nvidia-ml-py \
-  ultralytics-thop ultralytics-platform
-python -m pip install --no-deps "ultralytics==8.4.138"
+  filelock matplotlib pillow pyyaml requests psutil polars nvidia-ml-py httpx
+
+# These packages depend on OpenCV or PyTorch, so never resolve their dependencies.
+python -m pip install --no-deps \
+  "ultralytics-thop==2.1.6" \
+  "ultralytics-platform==0.1.21" \
+  "ultralytics==8.4.138"
 ```
 
 Do not install `opencv-python`, `opencv-python-headless`, or their contrib
-variants in this environment. `--no-deps` prevents Ultralytics from adding a
-bundled OpenCV or replacing the JetPack-compatible PyTorch build. Install
-PyTorch and torchvision versions compatible with the active JetPack release,
-and keep NumPy on 1.x to match the custom OpenCV build. Verify the combined ROS
-and inference environment before continuing:
+variants in this environment. Applying `--no-deps` to Ultralytics and
+`ultralytics-thop` is essential: otherwise pip can download a generic PyTorch
+and multi-gigabyte CUDA dependency stack. Install and verify PyTorch and
+torchvision versions compatible with the active JetPack release before running
+this block, and keep NumPy on 1.x to match the custom OpenCV build. Verify the
+combined ROS and inference environment before continuing:
 
 ```bash
 python - <<'PY'
